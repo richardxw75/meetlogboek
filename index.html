@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meetlogboek</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<!-- =====================================================================
+     CONFIGURATIE – pas alleen dit blok aan
+     ===================================================================== -->
+<script>
+const CONFIG = {
+  // OAuth-client-ID (type "Webtoepassing") uit Google Cloud Console.
+  // Ziet eruit als 1234567890-abc123.apps.googleusercontent.com
+  clientId: "7745213676-ucrj0qfk7ss2g4qpalv462196cvu599p.apps.googleusercontent.com",
+
+  // Volledig adres of alleen het ID van de Google Spreadsheet.
+  // Let op: het moet een echte Google Spreadsheet zijn, geen .xlsx in Drive.
+  spreadsheet: "https://docs.google.com/spreadsheets/d/1-4TZgdWHPzAs6FBL2b2Cpwwy5lolwrzh/edit",
+
+  // Naam van het werkblad (tabblad onderaan)
+  sheetName: "Dagoverzicht",
+
+  scope: "https://www.googleapis.com/auth/spreadsheets",
+};
+</script>
+
+<style>
+  :root {
+    --bg: #f3f6f6; --card: #ffffff; --ink: #15232b; --muted: #5a6a73;
+    --line: #d7dfe2; --soft: #e5ecee; --accent: #0b6e6e; --accent-ink: #ffffff;
+    --ok: #17744a; --err: #b42318; --warn: #8a5a00; --warn-bg: #fff4d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1619; --card: #162229; --ink: #e8eff2; --muted: #93a4ad;
+      --line: #2a3a44; --soft: #22323c; --accent: #52b8b4; --accent-ink: #062321;
+      --ok: #55c78f; --err: #ff8a7d; --warn: #f1c35a; --warn-bg: #3a2f10;
+    }
+  }
+  html { background: var(--bg); }
+  body { font-family: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1.1rem 1.1rem 1.25rem; }
+  .card h2 { font-size: 1rem; font-weight: 650; margin-bottom: .9rem; }
+  .lbl { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; font-size: .875rem; font-weight: 550; margin-bottom: .35rem; }
+  .lbl .sub { color: var(--muted); font-weight: 400; font-size: .8rem; }
+  .inp {
+    width: 100%; background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 10px; padding: .6rem .75rem; font: inherit; font-size: 1rem; min-height: 2.75rem;
+  }
+  .inp:focus-visible, .btn:focus-visible, .scale-track button:focus-visible, .chip:focus-visible, .rowbtn:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .inp[readonly] { color: var(--muted); }
+  textarea.inp { min-height: 5.5rem; resize: vertical; }
+  .unit { position: relative; }
+  .unit .inp { padding-right: 4.6rem; }
+  .unit span { position: absolute; right: .8rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .8rem; pointer-events: none; }
+
+  .scale-track { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+  .scale-track button {
+    height: 2.75rem; border-radius: 7px; background: var(--soft); color: var(--muted);
+    border: 0; font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer;
+  }
+  .scale-track button.on { background: var(--accent); color: var(--accent-ink); }
+  .badge { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); min-width: 1.5rem; text-align: right; }
+
+  .chip { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; padding: .3rem .9rem; font: inherit; font-size: .85rem; cursor: pointer; }
+  .chip:hover { background: var(--soft); }
+
+  .btn { border: 0; border-radius: 12px; padding: .8rem 1.3rem; font: inherit; font-weight: 600; font-size: 1rem; cursor: pointer; background: var(--accent); color: var(--accent-ink); min-height: 3rem; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+
+  .savebar { position: sticky; bottom: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--line); padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom, 0px)); }
+  .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--muted); flex: none; }
+  .st-loading .dot { background: var(--warn); }
+  .st-success .dot { background: var(--ok); }
+  .st-error .dot { background: var(--err); }
+  .st-error #statusText { color: var(--err); }
+  .st-success #statusText { color: var(--ok); }
+  .st-loading .dot { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .st-loading .dot { animation: none; } }
+
+  .banner { background: var(--warn-bg); color: var(--warn); border-radius: 12px; padding: .8rem 1rem; font-size: .9rem; }
+  .rowbtn { width: 100%; display: grid; grid-template-columns: 1fr auto auto auto; gap: .9rem; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: .65rem .2rem; color: var(--ink); font: inherit; font-size: .9rem; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .rowbtn:first-child { border-top: 0; }
+  .rowbtn:hover { background: var(--soft); }
+  .rowbtn .m { color: var(--muted); }
+</style>
+</head>
+
+<body>
+<div class="max-w-2xl mx-auto px-4 pt-6 pb-8">
+
+  <header class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight">Meetlogboek</h1>
+      <p class="text-sm" style="color:var(--muted)">Dagoverzicht in Google Sheets</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="account" class="text-sm hidden sm:inline" style="color:var(--muted)"></span>
+      <button id="loginBtn" class="btn" type="button">Inloggen met Google</button>
+      <button id="logoutBtn" class="btn ghost hidden" type="button">Uitloggen</button>
+    </div>
+  </header>
+
+  <div id="setupBanner" class="banner mb-4 hidden">
+    Vul eerst je Google <strong>clientId</strong> in het configuratieblok bovenaan dit bestand in. Zie de handleiding voor het aanmaken ervan.
+  </div>
+
+  <main id="form" class="grid gap-4"></main>
+
+  <section class="card mt-4" id="recentCard" hidden>
+    <h2>Laatste dagen</h2>
+    <div id="recent"></div>
+  </section>
+</div>
+
+<div class="savebar">
+  <div class="max-w-2xl mx-auto flex items-center justify-between gap-3">
+    <div id="statusWrap" class="flex items-center gap-2 min-w-0 text-sm st-idle" role="status" aria-live="polite">
+      <span class="dot"></span><span id="statusText" class="truncate">Log in om te beginnen</span>
+    </div>
+    <button id="saveBtn" class="btn" type="button" disabled>Opslaan in Google Sheets</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  /* ---------------- Kolommen en velden ---------------- */
+  const COLUMNS = ["Dag","Datum","HRV","Rusthartslag","Slaapduur","Slaapkwaliteit (1-10)",
+    "Body Battery Ochtend","Body Battery Avond","Garmin Stress Gem.","Alcohol","Energie (1-10)",
+    "Sport","Klachten","Opmerkingen"];
+  const LAST_COL = "N"; // 14 kolommen: A t/m N
+
+  const FIELDS = {
+    0:  { label: "Dag", kind: "dag" },
+    1:  { label: "Datum", kind: "date" },
+    2:  { label: "HRV", kind: "num", unit: "ms", step: "1", min: 0, max: 300 },
+    3:  { label: "Rusthartslag", kind: "num", unit: "slagen/min", step: "1", min: 20, max: 220 },
+    4:  { label: "Slaapduur", kind: "num", unit: "uur", step: "0.1", min: 0, max: 24 },
+    5:  { label: "Slaapkwaliteit", kind: "scale", sub: "1–10" },
+    6:  { label: "Body Battery ochtend", kind: "num", unit: "0–100", step: "1", min: 0, max: 100 },
+    7:  { label: "Body Battery avond", kind: "num", unit: "0–100", step: "1", min: 0, max: 100 },
+    8:  { label: "Garmin stress gemiddeld", kind: "num", unit: "0–100", step: "1", min: 0, max: 100 },
+    9:  { label: "Alcohol", kind: "yesno", ph: "ja, nee of bijv. 2 glazen wijn" },
+    10: { label: "Energie", kind: "scale", sub: "1–10" },
+    11: { label: "Sport", kind: "yesno", ph: "ja, nee of bijv. hardlopen 5 km" },
+    12: { label: "Klachten", kind: "scaletext", sub: "1–10 en/of tekst" },
+    13: { label: "Opmerkingen", kind: "textarea" },
+  };
+  const SECTIONS = [
+    { title: "Dag", idx: [0, 1], cols: 2 },
+    { title: "Slaap en herstel", idx: [2, 3, 4, 5], cols: 2 },
+    { title: "Body Battery en stress", idx: [6, 7, 8], cols: 2 },
+    { title: "Leefstijl", idx: [9, 10, 11, 12], cols: 1 },
+    { title: "Opmerkingen", idx: [13], cols: 1 },
+  ];
+
+  /* ---------------- Kleine helpers ---------------- */
+  const $ = (s) => document.querySelector(s);
+  function h(tag, attrs = {}, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") el.className = v;
+      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+      else if (v !== false && v != null) el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const kid of kids.flat()) { if (kid != null) el.append(kid.nodeType ? kid : document.createTextNode(kid)); }
+    return el;
+  }
+  const pad = (n) => String(n).padStart(2, "0");
+  const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  const dagNaam = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("nl-NL", { weekday: "long" }).toLowerCase();
+
+  function normDate(v) {
+    if (typeof v === "number" && v > 20000) return new Date(Math.round((v - 25569) * 864e5)).toISOString().slice(0, 10);
+    if (typeof v !== "string") return null;
+    const s = v.trim();
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);
+    if (m) return `${m[3]}-${pad(m[2])}-${pad(m[1])}`;
+    return null;
+  }
+
+  /* ---------------- Formulierbesturing ---------------- */
+  const ctl = {};  // index -> { el, get, set, badge? }
+
+  function numControl(f) {
+    const inp = h("input", { class: "inp", type: "number", inputmode: "decimal", step: f.step, min: f.min, max: f.max });
+    return {
+      el: h("div", { class: "unit" }, inp, h("span", {}, f.unit)),
+      get: () => (inp.value === "" ? "" : Number(inp.value)),
+      set: (v) => { const n = Number(String(v ?? "").replace(",", ".")); inp.value = v === "" || v == null || isNaN(n) ? "" : String(n); },
+      input: inp,
+    };
+  }
+
+  function scaleControl(withText) {
+    let val = "";
+    const btns = [];
+    const track = h("div", { class: "scale-track", role: "group" });
+    const badge = h("span", { class: "badge" }, "–");
+    for (let n = 1; n <= 10; n++) {
+      const b = h("button", { type: "button", "aria-label": `Waarde ${n}`, "aria-pressed": "false",
+        onclick: () => setNum(val === n ? "" : n) }, String(n));
+      btns.push(b); track.append(b);
+    }
+    function setNum(v) {
+      const n = Number(v);
+      val = v === "" || v == null || !Number.isInteger(n) || n < 1 || n > 10 ? "" : n;
+      btns.forEach((b, i) => {
+        b.classList.toggle("on", val !== "" && i + 1 <= val);
+        b.setAttribute("aria-pressed", String(val === i + 1));
+      });
+      badge.textContent = val === "" ? "–" : String(val);
+    }
+    setNum("");
+    if (!withText) return { el: track, get: () => val, set: setNum, badge };
+
+    const txt = h("input", { class: "inp mt-2", type: "text", placeholder: "Omschrijving, bijv. verkouden", autocomplete: "off" });
+    return {
+      el: h("div", {}, track, txt),
+      badge,
+      get: () => {
+        const t = txt.value.trim();
+        if (val !== "" && t) return `${val} - ${t}`;
+        return val !== "" ? val : t;
+      },
+      set: (v) => {
+        if (v === "" || v == null) { setNum(""); txt.value = ""; return; }
+        if (typeof v === "number") { setNum(v); txt.value = ""; return; }
+        const s = String(v).trim();
+        const m = s.match(/^(\d{1,2})\s*[-–:]\s*([\s\S]*)$/);
+        if (/^\d{1,2}$/.test(s)) { setNum(Number(s)); txt.value = ""; }
+        else if (m && Number(m[1]) >= 1 && Number(m[1]) <= 10) { setNum(Number(m[1])); txt.value = m[2]; }
+        else { setNum(""); txt.value = s; }
+      },
+    };
+  }
+
+  function yesnoControl(f, i) {
+    const listId = `dl-${i}`;
+    const inp = h("input", { class: "inp", type: "text", list: listId, placeholder: f.ph, autocomplete: "off" });
+    const dl = h("datalist", { id: listId }, h("option", { value: "ja" }), h("option", { value: "nee" }));
+    const chips = h("div", { class: "flex gap-2 mt-2" },
+      h("button", { type: "button", class: "chip", onclick: () => (inp.value = "ja") }, "Ja"),
+      h("button", { type: "button", class: "chip", onclick: () => (inp.value = "nee") }, "Nee"),
+      h("button", { type: "button", class: "chip", onclick: () => (inp.value = "") }, "Leegmaken"));
+    return { el: h("div", {}, inp, dl, chips), get: () => inp.value.trim(), set: (v) => (inp.value = v == null ? "" : String(v)) };
+  }
+
+  function buildForm() {
+    const root = $("#form");
+    for (const sec of SECTIONS) {
+      const grid = h("div", { class: `grid gap-4 ${sec.cols === 2 ? "sm:grid-cols-2" : ""}` });
+      for (const i of sec.idx) {
+        const f = FIELDS[i];
+        let c;
+        if (f.kind === "dag") { const inp = h("input", { class: "inp", type: "text", readonly: true }); c = { el: inp, get: () => inp.value, set: (v) => (inp.value = v ?? "") }; }
+        else if (f.kind === "date") { const inp = h("input", { class: "inp", type: "date", required: true, onchange: () => onDateChange() }); c = { el: inp, get: () => inp.value, set: (v) => (inp.value = v ?? "") }; }
+        else if (f.kind === "num") c = numControl(f);
+        else if (f.kind === "scale") c = scaleControl(false);
+        else if (f.kind === "scaletext") c = scaleControl(true);
+        else if (f.kind === "yesno") c = yesnoControl(f, i);
+        else { const ta = h("textarea", { class: "inp", placeholder: "Vrije tekst" }); c = { el: ta, get: () => ta.value.trim(), set: (v) => (ta.value = v == null ? "" : String(v)) }; }
+        ctl[i] = c;
+        const right = c.badge ? c.badge : (f.sub ? h("span", { class: "sub" }, f.sub) : null);
+        const wrap = h("div", { class: f.kind === "scaletext" || f.kind === "scale" ? "sm:col-span-2" : "" },
+          h("div", { class: "lbl" }, h("label", {}, f.label), right), c.el);
+        grid.append(wrap);
+        if (i === 1) grid.append(h("p", { id: "dateHint", class: "text-sm sm:col-span-2", style: "color:var(--muted)" }));
+      }
+      root.append(h("section", { class: "card" }, h("h2", {}, sec.title), grid));
+    }
+  }
+
+  function collect() {
+    const out = [];
+    for (let i = 0; i < 14; i++) out[i] = ctl[i].get();
+    if (!out[1]) { setStatus("error", "Vul een datum in."); return null; }
+    for (const i of [2, 3, 4, 6, 7, 8]) {
+      const f = FIELDS[i], v = out[i];
+      if (v !== "" && (v < f.min || v > f.max)) { setStatus("error", `${f.label}: waarde moet tussen ${f.min} en ${f.max} liggen.`); return null; }
+    }
+    return out;
+  }
+
+  function resetFields() { for (let i = 2; i < 14; i++) ctl[i].set(""); }
+
+  /* ---------------- Status ---------------- */
+  function setStatus(kind, text) {
+    $("#statusWrap").className = `flex items-center gap-2 min-w-0 text-sm st-${kind}`;
+    $("#statusText").textContent = text;
+  }
+
+  /* ---------------- Authenticatie (Google Identity Services) ---------------- */
+  const SHEET_ID = (CONFIG.spreadsheet.match(/\/d\/([\w-]+)/) || [null, CONFIG.spreadsheet.trim()])[1];
+  let tokenClient = null, accessToken = null, tokenExpiry = 0, signedIn = false, pending = null;
+
+  function waitForGoogle(ms = 8000) {
+    return new Promise((resolve, reject) => {
+      const t0 = Date.now();
+      (function poll() {
+        if (window.google?.accounts?.oauth2) return resolve();
+        if (Date.now() - t0 > ms) return reject(new Error("Het Google-inlogscript kon niet worden geladen (internetverbinding of adblocker?)."));
+        setTimeout(poll, 100);
+      })();
+    });
+  }
+
+  function requestToken() {
+    return new Promise((resolve, reject) => {
+      pending = { resolve, reject };
+      tokenClient.requestAccessToken({ prompt: "" });
+    });
+  }
+
+  async function ensureToken() {
+    if (accessToken && Date.now() < tokenExpiry) return accessToken;
+    return requestToken();
+  }
+
+  async function initAuth() {
+    if (CONFIG.clientId.startsWith("VUL-")) {
+      $("#setupBanner").classList.remove("hidden");
+      $("#loginBtn").disabled = true;
+      setStatus("idle", "clientId ontbreekt in de configuratie");
+      return;
+    }
+    await waitForGoogle();
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CONFIG.clientId,
+      scope: CONFIG.scope,
+      callback: (r) => {
+        if (r.error) { pending?.reject(Object.assign(new Error(r.error_description || r.error), { code: r.error })); return; }
+        accessToken = r.access_token;
+        tokenExpiry = Date.now() + (Number(r.expires_in) - 60) * 1000;
+        sessionStorage.setItem("gtoken", JSON.stringify({ accessToken, tokenExpiry }));
+        signedIn = true;
+        pending?.resolve(accessToken);
+      },
+      error_callback: (e) => pending?.reject(Object.assign(new Error(e.message || e.type), { code: e.type })),
+    });
+    try {
+      const saved = JSON.parse(sessionStorage.getItem("gtoken") || "null");
+      if (saved && Date.now() < saved.tokenExpiry) { accessToken = saved.accessToken; tokenExpiry = saved.tokenExpiry; signedIn = true; await afterLogin(); }
+    } catch (_) {}
+  }
+
+  async function login() {
+    try {
+      setStatus("loading", "Inloggen...");
+      await requestToken();
+      await afterLogin();
+    } catch (e) {
+      setStatus("error", e.code === "popup_closed" ? "Inloggen geannuleerd." : `Inloggen mislukt: ${e.message}`);
+    }
+  }
+
+  function logout() {
+    if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
+    accessToken = null; tokenExpiry = 0; signedIn = false;
+    sessionStorage.removeItem("gtoken");
+    state.entries = []; state.loaded = false; state.prefilled = false;
+    updateAuthUi(); renderRecent(); updateHint();
+    setStatus("idle", "Uitgelogd");
+  }
+
+  function updateAuthUi() {
+    $("#loginBtn").classList.toggle("hidden", signedIn);
+    $("#logoutBtn").classList.toggle("hidden", !signedIn);
+    $("#account").textContent = signedIn ? "Verbonden met Google" : "";
+    $("#saveBtn").disabled = !signedIn;
+  }
+
+  async function afterLogin() {
+    updateAuthUi();
+    setStatus("loading", "Laden...");
+    try {
+      await refresh();
+      setStatus("idle", `Verbonden met Google Sheets (${CONFIG.sheetName})`);
+    } catch (e) { setStatus("error", explain(e)); }
+  }
+
+  /* ---------------- Google Sheets API ---------------- */
+  const API = "https://sheets.googleapis.com/v4/spreadsheets";
+  const rng = (a) => encodeURIComponent(`'${CONFIG.sheetName.replace(/'/g, "''")}'!${a}`);
+
+  async function sheets(method, path, body) {
+    const token = await ensureToken();
+    const res = await fetch(`${API}/${SHEET_ID}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      let msg = res.statusText;
+      try { msg = (await res.json()).error?.message || msg; } catch (_) {}
+      if (res.status === 401) { accessToken = null; sessionStorage.removeItem("gtoken"); }
+      const err = new Error(msg); err.status = res.status; throw err;
+    }
+    return res.json();
+  }
+
+  function explain(e) {
+    if (/not supported for this document/i.test(e.message)) return "Dit is nog een Excel-bestand. Open het in Google Drive en kies Bestand > Opslaan als Google Spreadsheet; gebruik daarna het nieuwe adres in CONFIG.";
+    if (/unable to parse range/i.test(e.message)) return `Werkblad "${CONFIG.sheetName}" niet gevonden. Controleer sheetName.`;
+    if (e.status === 404) return "Spreadsheet niet gevonden. Controleer het adres in CONFIG.";
+    if (e.status === 403) return "Geen toegang. Zet de Google Sheets API aan, voeg jezelf toe als testgebruiker en log in met het account dat het bestand bezit.";
+    if (e.status === 401) return "Sessie verlopen. Klik opnieuw op Opslaan of log opnieuw in.";
+    if (e.status === 429) return "Te veel verzoeken. Probeer het over een halve minuut opnieuw.";
+    return `Fout: ${e.message}`;
+  }
+
+  /* Rijen uit het werkblad */
+  const state = { entries: [], empty: false, lastRow: 0, dateAsText: false, loaded: false, prefilled: false };
+
+  async function refresh() {
+    const r = await sheets("GET", `/values/${rng("A1:N")}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`);
+    const values = r.values || [];
+    state.empty = values.every((row) => row.every((c) => c === ""));
+    state.entries = [];
+    state.lastRow = state.empty ? 0 : values.length;
+    state.dateAsText = false;
+    if (!state.empty) {
+      for (let j = 1; j < values.length; j++) {
+        const vals = Array.from({ length: 14 }, (_, k) => values[j][k] ?? "");
+        const iso = normDate(vals[1]);
+        if (iso) state.entries.push({ row: j + 1, iso, vals });
+      }
+      for (let j = values.length - 1; j >= 1; j--) {
+        const d = values[j][1];
+        if (d !== undefined && d !== "") { state.dateAsText = typeof d === "string"; break; }
+      }
+    }
+    state.loaded = true;
+    renderRecent();
+    onDateChange(false);
+  }
+
+  const findRow = (iso) => [...state.entries].reverse().find((e) => e.iso === iso);
+
+  async function save() {
+    if (!signedIn) return;
+    const vals = collect();
+    if (!vals) return;
+    $("#saveBtn").disabled = true;
+    setStatus("loading", "Opslaan...");
+    try {
+      await ensureToken();                     // eerst, binnen de klik (popup-blokkade)
+      await refresh();                         // altijd met de nieuwste stand werken
+      const existing = findRow(vals[1]);
+      let row;
+      if (existing) row = existing.row;
+      else if (state.empty) { await sheets("PUT", `/values/${rng("A1:N1")}?valueInputOption=RAW`, { values: [COLUMNS] }); row = 2; }
+      else row = state.lastRow + 1;
+
+      // Staan de bestaande datums als tekst, dan ook als tekst schrijven (RAW); anders als echte datum.
+      const opt = state.dateAsText ? "RAW" : "USER_ENTERED";
+      await sheets("PUT", `/values/${rng(`A${row}:N${row}`)}?valueInputOption=${opt}`, { values: [vals] });
+      await refresh();
+      setStatus("success", existing ? "Succesvol bijgewerkt in Google Sheets!" : "Nieuwe rij toegevoegd in Google Sheets!");
+    } catch (e) { setStatus("error", explain(e)); }
+    finally { $("#saveBtn").disabled = !signedIn; }
+  }
+
+  /* ---------------- Datumlogica en overzicht ---------------- */
+  function updateHint() {
+    const hint = $("#dateHint");
+    if (!hint) return;
+    if (!account || !state.loaded) { hint.textContent = ""; return; }
+    const e = findRow(ctl[1].get());
+    hint.textContent = e ? `Voor deze datum staat al een rij (rij ${e.row}). Opslaan werkt die bij.` : "Nieuwe datum: er wordt een rij onderaan toegevoegd.";
+  }
+
+  function onDateChange(fill = true) {
+    const iso = ctl[1].get();
+    ctl[0].set(iso ? dagNaam(iso) : "");
+    const e = state.loaded ? findRow(iso) : null;
+    if (e) {
+      if (fill) { for (let i = 2; i < 14; i++) ctl[i].set(e.vals[i] ?? ""); state.prefilled = true; }
+      else if (!state.prefilled) { for (let i = 2; i < 14; i++) ctl[i].set(e.vals[i] ?? ""); state.prefilled = true; }
+    } else if (state.prefilled) { resetFields(); state.prefilled = false; }
+    updateHint();
+  }
+
+  function renderRecent() {
+    const box = $("#recent");
+    box.replaceChildren();
+    const last = state.entries.slice(-7).reverse();
+    $("#recentCard").hidden = !last.length;
+    for (const e of last) {
+      const v = (i) => (e.vals[i] === "" || e.vals[i] == null ? "–" : e.vals[i]);
+      box.append(h("button", { type: "button", class: "rowbtn", onclick: () => { ctl[1].set(e.iso); state.prefilled = false; onDateChange(true); window.scrollTo({ top: 0, behavior: "smooth" }); } },
+        h("span", {}, `${v(0)} ${e.iso}`),
+        h("span", { class: "m" }, `HRV ${v(2)}`),
+        h("span", { class: "m" }, `Slaap ${v(4)} u`),
+        h("span", { class: "m" }, `Energie ${v(10)}`)));
+    }
+  }
+
+  /* ---------------- Start ---------------- */
+  buildForm();
+  ctl[1].set(todayISO());
+  onDateChange(false);
+  $("#loginBtn").addEventListener("click", login);
+  $("#logoutBtn").addEventListener("click", logout);
+  $("#saveBtn").addEventListener("click", save);
+  updateAuthUi();
+  initAuth().catch((e) => setStatus("error", `Initialisatie mislukt: ${e.message}`));
+})();
+</script>
+</body>
+</html>
